@@ -1,19 +1,18 @@
-from calendar import timegm
-from datetime import datetime
+from datetime import datetime, timedelta
 
-from ..util.tzinfo import tzutc
 from .base import FormatColumn
 
 
 class DateTimeColumn(FormatColumn):
     ch_type = 'DateTime'
+
     py_types = (datetime, )
     format = 'I'
 
-    utc = tzutc()
-
-    def after_read_item(self, value):
-        return datetime.fromtimestamp(value, tz=self.utc).replace(tzinfo=None)
+    epoch_start = datetime(1970, 1, 1)
 
     def before_write_item(self, value):
-        return int(timegm(value.timetuple()))
+        return int((value - self.epoch_start).total_seconds())
+
+    def after_read_item(self, value):
+        return self.epoch_start + timedelta(seconds=value)
