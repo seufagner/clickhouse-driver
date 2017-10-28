@@ -28,7 +28,7 @@ install:
 before_script:
   # Modern flake8 doesn't work with 3.2
   - if [[ "$TRAVIS_PYTHON_VERSION" != "3.2" ]]; then
-      flake8 .;
+      flake8 src tests;
     fi
 script:
   # Modern coverage doesn't work with 3.2
