@@ -183,7 +183,8 @@ class Connection(object):
             # performance tweak
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            self.fin = self.socket.makefile('rb')
+            from reader import SockReader
+            self.fin = SockReader(self.socket)
             self.fout = self.socket.makefile('wb')
 
             self.send_hello()

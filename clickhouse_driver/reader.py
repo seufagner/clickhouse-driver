@@ -90,3 +90,40 @@ def read_binary_uint128(buf):
     lo = read_binary_int(buf, 'Q')
 
     return (hi << 64) + lo
+
+
+class SockReader(object):
+    size = 2048
+
+    def __init__(self, sock):
+        self._i = 0
+        self.sock = sock
+        self.block = None
+        super(SockReader, self).__init__()
+
+    def read(self, n):
+        if not self.block:
+            self.block = bytearray(self.sock.recv(self.size))
+            self._i = 0
+
+        rv = self.block[self._i:self._i + n]
+        read = len(rv)
+        self._i += read
+
+        if n != -1:
+            unread = n - read
+        else:
+            unread = 0
+
+        while unread > 0:
+            self.block = bytearray(self.sock.recv(self.size))
+            self._i = 0
+            part = self.block[self._i:self._i + unread]
+            self._i += len(part)
+            unread -= len(part)
+            rv += part
+
+        return str(rv)
+
+    def close(self):
+        pass
