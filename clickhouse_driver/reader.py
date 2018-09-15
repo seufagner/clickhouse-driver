@@ -19,14 +19,6 @@ def read_binary_bytes_fixed_len(buf, length):
     return buf.read(length)
 
 
-def _read_one(f):
-    c = f.read(1)
-    if c == b'':
-        raise EOFError("Unexpected EOF while reading bytes")
-
-    return ord(c)
-
-
 def read_varint(f):
     """
     Reads integer of variable length using LEB128.
@@ -35,7 +27,7 @@ def read_varint(f):
     result = 0
 
     while True:
-        i = _read_one(f)
+        i = f.read_one()
         result |= (i & 0x7f) << shift
         shift += 7
         if not (i & 0x80):
@@ -93,37 +85,42 @@ def read_binary_uint128(buf):
 
 
 class SockReader(object):
-    size = 2048
+    buffer = bytearray(8192)
 
     def __init__(self, sock):
-        self._i = 0
+        self._i = None
         self.sock = sock
-        self.block = None
+        self.current_buffer_size = 0
         super(SockReader, self).__init__()
 
     def read(self, n):
-        if not self.block:
-            self.block = bytearray(self.sock.recv(self.size))
-            self._i = 0
-
-        rv = self.block[self._i:self._i + n]
-        read = len(rv)
-        self._i += read
-
-        if n != -1:
-            unread = n - read
-        else:
-            unread = 0
+        unread = n
+        rv = bytearray()
 
         while unread > 0:
-            self.block = bytearray(self.sock.recv(self.size))
-            self._i = 0
-            part = self.block[self._i:self._i + unread]
-            self._i += len(part)
-            unread -= len(part)
-            rv += part
+            if not self.current_buffer_size:
+                self.current_buffer_size = self.sock.recv_into(self.buffer)
+                self._i = 0
 
-        return str(rv)
+            part = self.buffer[self._i:min(self._i + unread, self.current_buffer_size)]
+
+            l = len(part)
+            self._i += l
+            unread -= l
+            rv += part
+            if self._i == self.current_buffer_size:
+                self.current_buffer_size = 0
+
+        return rv
+
+    def read_one(self):
+        if not self.current_buffer_size or (self._i >= self.current_buffer_size):
+            self.current_buffer_size = self.sock.recv_into(self.buffer)
+            self._i = 0
+
+        rv = self.buffer[self._i]
+        self._i += 1
+        return rv
 
     def close(self):
         pass
