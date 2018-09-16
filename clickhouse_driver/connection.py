@@ -184,7 +184,7 @@ class Connection(object):
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
             from reader import SockReader
-            self.fin = SockReader(self.socket)
+            self.fin = SockReader(self.socket, 1024 * 1024)
             self.fout = self.socket.makefile('wb')
 
             self.send_hello()

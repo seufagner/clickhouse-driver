@@ -85,41 +85,47 @@ def read_binary_uint128(buf):
 
 
 class SockReader(object):
-    buffer = bytearray(8192)
+    def __init__(self, sock, bufsize):
+        self.buffer = bytearray(bufsize)
+        self.buffer_view = memoryview(self.buffer)
 
-    def __init__(self, sock):
-        self._i = None
+        self.position = 0
         self.sock = sock
         self.current_buffer_size = 0
         super(SockReader, self).__init__()
 
-    def read(self, n):
-        unread = n
-        rv = bytearray()
+    def read(self, unread):
+        # When the buffer is large enough bytes read are almost always hit the buffer.
+        next_position = unread + self.position
+        if next_position < self.current_buffer_size:
+            t = self.position
+            self.position = next_position
+            return self.buffer[t:self.position]
+
+        rv = bytearray(unread)
+        rv_view = memoryview(rv)
+        rv_position = 0
 
         while unread > 0:
-            if not self.current_buffer_size:
+            if self.position == self.current_buffer_size:
                 self.current_buffer_size = self.sock.recv_into(self.buffer)
-                self._i = 0
+                self.position = 0
 
-            part = self.buffer[self._i:min(self._i + unread, self.current_buffer_size)]
-
-            l = len(part)
-            self._i += l
+            l = min(unread, self.current_buffer_size - self.position)
+            rv_view[rv_position:rv_position + l] = self.buffer_view[self.position:self.position + l]
+            self.position += l
+            rv_position += l
             unread -= l
-            rv += part
-            if self._i == self.current_buffer_size:
-                self.current_buffer_size = 0
 
         return rv
 
     def read_one(self):
-        if not self.current_buffer_size or (self._i >= self.current_buffer_size):
+        if self.position == self.current_buffer_size:
             self.current_buffer_size = self.sock.recv_into(self.buffer)
-            self._i = 0
+            self.position = 0
 
-        rv = self.buffer[self._i]
-        self._i += 1
+        rv = self.buffer[self.position]
+        self.position += 1
         return rv
 
     def close(self):

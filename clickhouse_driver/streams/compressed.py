@@ -88,6 +88,9 @@ class CompressedBlockReader(object):
 
         return rv
 
+    def read_one(self):
+        return ord(self.read(1)[0])
+
 
 class CompressedBlockInputStream(BlockInputStream):
     def __init__(self, fin, context):
