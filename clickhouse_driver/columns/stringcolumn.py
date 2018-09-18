@@ -65,11 +65,56 @@ class ByteString(String):
 
     def read_items(self, n_items, buf):
         items = [None] * n_items
+
         i = 0
+
+        buffer = buf.buffer
+        buffer_view = buf.buffer_view
+        position = buf.position
+        current_buffer_size = buf.current_buffer_size
+        sock = buf.sock
+
         while i < n_items:
-            length = read_varint(buf)
-            items[i] = buf.read(length)
+            shift = 0
+            result = 0
+
+            while True:
+                if position == current_buffer_size:
+                    current_buffer_size = sock.recv_into(buffer)
+                    position = 0
+
+                b = buffer[position]
+
+                position += 1
+
+                result |= (b & 0x7f) << shift
+                shift += 7
+                if not (b & 0x80):
+                    break
+
+            right = position + result
+
+            # Memory view here is a trade off between speed and memory.
+            # Without memory view there will be additional memory fingerprint.
+            if right >= current_buffer_size:
+                rv = buffer_view[position:current_buffer_size].tobytes()
+
+                position = right - current_buffer_size
+                current_buffer_size = sock.recv_into(buffer)
+                rv += buffer_view[0:position].tobytes()
+
+            else:
+                rv = buffer_view[position:right].tobytes()
+                position += result
+
+            items[i] = rv
             i += 1
+
+        buf.buffer = buffer
+        buf.buffer_view = buffer_view
+        buf.position = position
+        buf.current_buffer_size = current_buffer_size
+        # print(items)
 
         return items
 
