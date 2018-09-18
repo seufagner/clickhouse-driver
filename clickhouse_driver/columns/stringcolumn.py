@@ -7,6 +7,7 @@ from .base import Column
 
 from codecs import utf_8_decode, utf_8_encode
 
+
 class String(Column):
     ch_type = 'String'
     py_types = compat.string_types
@@ -42,6 +43,32 @@ class String(Column):
                 pass
 
             items[i] = value
+            i += 1
+
+        return items
+
+
+class ByteString(String):
+    # TODO: support only bytes
+
+    def prepare_null(self, value):
+        if self.nullable and value is None:
+            return '', True
+
+        else:
+            return value, False
+
+    def write_items(self, items, buf):
+        for value in items:
+            write_varint(len(value), buf)
+            buf.write(value)
+
+    def read_items(self, n_items, buf):
+        items = [None] * n_items
+        i = 0
+        while i < n_items:
+            length = read_varint(buf)
+            items[i] = buf.read(length)
             i += 1
 
         return items
@@ -92,6 +119,48 @@ class FixedString(String):
         buf.write(items_buf)
 
 
-def create_fixed_string_column(spec):
-    length = int(spec[12:-1])
-    return FixedString(length)
+class ByteFixedString(FixedString):
+    def read_items(self, n_items, buf):
+        l = self.length
+        items = [None] * n_items
+        items_buf = buf.read(l * n_items)
+
+        i = 0
+        buf_pos = 0
+        while i < n_items:
+            items[i] = items_buf[buf_pos:buf_pos + l]
+            i += 1
+            buf_pos += l
+
+        return items
+
+    def write_items(self, items, buf):
+        items_buf = bytearray(self.length * len(items))
+        items_buf_view = memoryview(items_buf)
+        buf_pos = 0
+
+        for value in items:
+            if self.length < len(value):
+                raise errors.TooLargeStringSize()
+
+            items_buf_view[buf_pos:buf_pos + min(self.length, len(value))] = value
+            buf_pos += self.length
+
+        buf.write(items_buf)
+
+
+def create_string_column(spec, column_options):
+    client_settings = column_options['context'].client_settings
+    strings_as_bytes = client_settings['strings_as_bytes']
+
+    if spec == 'String':
+        if strings_as_bytes:
+            return ByteString(**column_options)
+        else:
+            return String(**column_options)
+    else:
+        length = int(spec[12:-1])
+        if strings_as_bytes:
+            return ByteFixedString(length, **column_options)
+        else:
+            return FixedString(length, **column_options)
