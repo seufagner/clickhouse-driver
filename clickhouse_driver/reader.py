@@ -1,3 +1,4 @@
+from _codecs import utf_8_decode
 from struct import Struct
 
 
@@ -127,6 +128,71 @@ class SockReader(object):
         rv = self.buffer[self.position]
         self.position += 1
         return rv
+
+    def read_strings(self, n_items, decode=None):
+        """
+        Python has great overhead between function calls.
+        We inline strings reading logic here to avoid this overhead.
+        """
+        items = [None] * n_items
+
+        i = 0
+
+        buffer = self.buffer
+        buffer_view = self.buffer_view
+        position = self.position
+        current_buffer_size = self.current_buffer_size
+        sock = self.sock
+
+        while i < n_items:
+            shift = 0
+            result = 0
+
+            while True:
+                if position == current_buffer_size:
+                    current_buffer_size = sock.recv_into(buffer)
+                    position = 0
+
+                b = buffer[position]
+
+                position += 1
+
+                result |= (b & 0x7f) << shift
+                shift += 7
+                if not (b & 0x80):
+                    break
+
+            right = position + result
+
+            # Memory view here is a trade off between speed and memory.
+            # Without memory view there will be additional memory fingerprint.
+            if right >= current_buffer_size:
+                rv = buffer_view[position:current_buffer_size].tobytes()
+
+                position = right - current_buffer_size
+                current_buffer_size = sock.recv_into(buffer)
+                rv += buffer_view[0:position].tobytes()
+
+            else:
+                rv = buffer_view[position:right].tobytes()
+                position += result
+
+            if decode:
+                try:
+                    rv = utf_8_decode(rv)[0]
+                except UnicodeDecodeError:
+                    # Do nothing. Just return bytes.
+                    pass
+
+            items[i] = rv
+            i += 1
+
+        self.buffer = buffer
+        self.buffer_view = buffer_view
+        self.position = position
+        self.current_buffer_size = current_buffer_size
+
+        return items
 
     def close(self):
         pass
