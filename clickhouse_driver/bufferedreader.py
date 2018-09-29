@@ -66,9 +66,9 @@ class BufferedReader(object):
         current_buffer_size = self.current_buffer_size
 
         while i < n_items:
-            shift = 0
-            result = 0
+            shift = size = 0
 
+            # Read string size
             while True:
                 if position == current_buffer_size:
                     self.read_into_buffer()
@@ -81,38 +81,47 @@ class BufferedReader(object):
 
                 position += 1
 
-                result |= (b & 0x7f) << shift
-                shift += 7
-                if not (b & 0x80):
+                size |= (b & 0x7f) << shift
+                if b < 0x80:
                     break
 
-            right = position + result
+                shift += 7
+
+            right = position + size
 
             # Memory view here is a trade off between speed and memory.
             # Without memory view there will be additional memory fingerprint.
+            # E. g. buffer[position:current_buffer_size]
             if right > current_buffer_size:
                 rv = buffer_view[position:current_buffer_size].tobytes()
 
-                position = right - current_buffer_size
-                self.read_into_buffer()
-                buffer = self.buffer
-                buffer_view = self.buffer_view
-                current_buffer_size = self.current_buffer_size
-                rv += buffer_view[0:position].tobytes()
+                # Read the rest of the string.
+                while len(rv) != size:
+                    position = size - len(rv)
+
+                    self.read_into_buffer()
+                    buffer = self.buffer
+                    buffer_view = self.buffer_view
+                    current_buffer_size = self.current_buffer_size
+                    rv += buffer_view[0:position].tobytes()
 
             else:
                 rv = buffer_view[position:right].tobytes()
-                position += result
+                position = right
 
-            if decode:
+            items[i] = rv
+            i += 1
+
+        if decode:
+            i = 0
+            while i < n_items:
                 try:
-                    rv = utf_8_decode(rv)[0]
+                    items[i] = utf_8_decode(items[i])[0]
                 except UnicodeDecodeError:
                     # Do nothing. Just return bytes.
                     pass
 
-            items[i] = rv
-            i += 1
+                i += 1
 
         self.buffer = buffer
         self.buffer_view = buffer_view
@@ -133,6 +142,9 @@ class BufferedSocketReader(BufferedReader):
     def read_into_buffer(self):
         self.current_buffer_size = self.sock.recv_into(self.buffer)
 
+        if self.current_buffer_size == 0:
+            raise EOFError("Unexpected EOF while reading bytes")
+
 
 class CompressedBufferedReader(BufferedReader):
     def __init__(self, read_block, bufsize):
@@ -143,3 +155,6 @@ class CompressedBufferedReader(BufferedReader):
         self.buffer = bytearray(self.read_block())
         self.buffer_view = memoryview(self.buffer)
         self.current_buffer_size = len(self.buffer)
+
+        if self.current_buffer_size == 0:
+            raise EOFError("Unexpected EOF while reading bytes")

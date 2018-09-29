@@ -30,7 +30,7 @@ def read_varint(f):
         i = f.read_one()
         result |= (i & 0x7f) << shift
         shift += 7
-        if not (i & 0x80):
+        if i < 0x80:
             break
 
     return result
