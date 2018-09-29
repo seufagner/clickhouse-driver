@@ -6,6 +6,7 @@ from time import time
 
 from .block import Block
 from .blockstreamprofileinfo import BlockStreamProfileInfo
+from .bufferedreader import BufferedSocketReader
 from .clientinfo import ClientInfo
 from .context import Context
 from . import defines
@@ -183,8 +184,7 @@ class Connection(object):
             # performance tweak
             self.socket.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
 
-            from reader import SockReader
-            self.fin = SockReader(self.socket, 1024 * 1024)
+            self.fin = BufferedSocketReader(self.socket, defines.BUFFER_SIZE)
             self.fout = self.socket.makefile('wb')
 
             self.send_hello()

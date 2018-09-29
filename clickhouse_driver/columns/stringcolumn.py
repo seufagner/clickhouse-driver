@@ -1,7 +1,6 @@
 
 from .. import errors
-from ..reader import read_binary_bytes, read_binary_bytes_fixed_len, read_varint
-from ..writer import write_binary_bytes, write_binary_bytes_fixed_len, write_varint, _byte
+from ..writer import write_varint
 from ..util import compat
 from .base import Column
 
@@ -99,16 +98,16 @@ class FixedString(String):
 
 class ByteFixedString(FixedString):
     def read_items(self, n_items, buf):
-        l = self.length
+        length = self.length
         items = [None] * n_items
-        items_buf = buf.read(l * n_items)
+        items_buf = buf.read(length * n_items)
 
         i = 0
         buf_pos = 0
         while i < n_items:
-            items[i] = items_buf[buf_pos:buf_pos + l]
+            items[i] = items_buf[buf_pos:buf_pos + length]
             i += 1
-            buf_pos += l
+            buf_pos += length
 
         return items
 
