@@ -166,7 +166,7 @@ class SockReader(object):
 
             # Memory view here is a trade off between speed and memory.
             # Without memory view there will be additional memory fingerprint.
-            if right >= current_buffer_size:
+            if right > current_buffer_size:
                 rv = buffer_view[position:current_buffer_size].tobytes()
 
                 position = right - current_buffer_size
