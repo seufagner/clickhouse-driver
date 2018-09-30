@@ -15,7 +15,8 @@ class BufferedReader(object):
         raise NotImplementedError
 
     def read(self, unread):
-        # When the buffer is large enough bytes read are almost always hit the buffer.
+        # When the buffer is large enough bytes read are almost
+        # always hit the buffer.
         next_position = unread + self.position
         if next_position < self.current_buffer_size:
             t = self.position
@@ -32,7 +33,8 @@ class BufferedReader(object):
                 self.position = 0
 
             read_bytes = min(unread, self.current_buffer_size - self.position)
-            rv_view[rv_position:rv_position + read_bytes] = self.buffer_view[self.position:self.position + read_bytes]
+            rv_view[rv_position:rv_position + read_bytes] = \
+                self.buffer_view[self.position:self.position + read_bytes]
             self.position += read_bytes
             rv_position += read_bytes
             unread -= read_bytes

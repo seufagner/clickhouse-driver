@@ -33,14 +33,7 @@ class String(Column):
 
 
 class ByteString(String):
-    # TODO: support only bytes
-
-    def prepare_null(self, value):
-        if self.nullable and value is None:
-            return '', True
-
-        else:
-            return value, False
+    py_types = (bytearray, )
 
     def write_items(self, items, buf):
         for value in items:
@@ -59,14 +52,16 @@ class FixedString(String):
         super(FixedString, self).__init__(**kwargs)
 
     def read_items(self, n_items, buf):
+        length = self.length
         items = [None] * n_items
-        items_buf = buf.read(self.length * n_items)
+        items_buf_view = memoryview(buf.read(length * n_items))
 
         i = 0
         buf_pos = 0
         while i < n_items:
-            value = items_buf[buf_pos:buf_pos + self.length]
-            value = value.rstrip(b'\x00')
+            value = items_buf_view[buf_pos:buf_pos + length].tobytes() \
+                .rstrip(b'\x00')
+
             try:
                 value = utf_8_decode(value)[0]
             except UnicodeDecodeError:
@@ -74,12 +69,13 @@ class FixedString(String):
 
             items[i] = value
             i += 1
-            buf_pos += self.length
+            buf_pos += length
 
         return items
 
     def write_items(self, items, buf):
-        items_buf = bytearray(self.length * len(items))
+        length = self.length
+        items_buf = bytearray(length * len(items))
         items_buf_view = memoryview(items_buf)
         buf_pos = 0
 
@@ -87,41 +83,46 @@ class FixedString(String):
             if not isinstance(value, bytes):
                 value = value.encode('utf-8')
 
-            if self.length < len(value):
+            value_length = len(value)
+            if length < value_length:
                 raise errors.TooLargeStringSize()
 
-            items_buf_view[buf_pos:buf_pos + min(self.length, len(value))] = value
-            buf_pos += self.length
+            items_buf_view[buf_pos:buf_pos + min(length, value_length)] = value
+            buf_pos += length
 
         buf.write(items_buf)
 
 
 class ByteFixedString(FixedString):
+    py_types = (bytearray, )
+
     def read_items(self, n_items, buf):
         length = self.length
         items = [None] * n_items
-        items_buf = buf.read(length * n_items)
+        items_buf_view = memoryview(buf.read(length * n_items))
 
         i = 0
         buf_pos = 0
         while i < n_items:
-            items[i] = items_buf[buf_pos:buf_pos + length]
+            items[i] = items_buf_view[buf_pos:buf_pos + length].tobytes()
             i += 1
             buf_pos += length
 
         return items
 
     def write_items(self, items, buf):
-        items_buf = bytearray(self.length * len(items))
+        length = self.length
+        items_buf = bytearray(length * len(items))
         items_buf_view = memoryview(items_buf)
         buf_pos = 0
 
         for value in items:
-            if self.length < len(value):
+            value_length = len(value)
+            if length < value_length:
                 raise errors.TooLargeStringSize()
 
-            items_buf_view[buf_pos:buf_pos + min(self.length, len(value))] = value
-            buf_pos += self.length
+            items_buf_view[buf_pos:buf_pos + min(length, value_length)] = value
+            buf_pos += length
 
         buf.write(items_buf)
 
